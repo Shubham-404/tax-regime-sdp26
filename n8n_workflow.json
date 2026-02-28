@@ -1,143 +1,127 @@
 {
-    "name": "Tax Regime Explainer Report",
+    "name": "TaxClarity — Standalone (Gemini Only, No Chroma)",
     "nodes": [
         {
             "parameters": {
                 "httpMethod": "POST",
-                "path": "tax-report",
+                "path": "tax-explainer",
                 "responseMode": "responseNode",
                 "options": {}
             },
-            "id": "node-webhook",
-            "name": "Webhook",
+            "id": "node-1",
+            "name": "Webhook — Receive from Postman",
             "type": "n8n-nodes-base.webhook",
-            "typeVersion": 1,
+            "typeVersion": 2,
             "position": [
-                240,
-                300
+                260,
+                460
+            ],
+            "webhookId": "tax-explainer-gemini-only"
+        },
+        {
+            "parameters": {
+                "jsCode": "// ═══ PHASE 1: Validate Input + Compute Old & New Regime Tax (FY 2024-25) ═══\nconst body = $input.first().json.body || $input.first().json;\nconst salary = Number(body.salary);\nif (!salary || salary <= 0) throw new Error('salary must be a positive number');\n\nconst d      = body.deductions || {};\nconst s80C   = Math.min(Number(d.section80C)||0, 150000);\nconst s80D   = Math.min(Number(d.section80D)||0, 25000);\nconst hra    = Number(d.hra)||0;\nconst other  = Number(d.other)||0;\nconst query  = (body.query || 'Which tax regime is better for me?').slice(0, 500);\n\nfunction applySlabs(income, table) {\n  if (income <= 0) return 0;\n  let tax = 0, prev = 0;\n  for (const s of table) {\n    const slice = Math.min(income, s.u) - prev;\n    if (slice <= 0) break;\n    tax  += slice * s.r;\n    prev  = s.u;\n    if (income <= s.u) break;\n  }\n  return Math.round(tax);\n}\n\nconst OLD_SLABS = [{u:250000,r:0},{u:500000,r:.05},{u:1000000,r:.20},{u:Infinity,r:.30}];\nconst NEW_SLABS = [{u:300000,r:0},{u:700000,r:.05},{u:1000000,r:.10},{u:1200000,r:.15},{u:1500000,r:.20},{u:Infinity,r:.30}];\n\n// Old Regime\nconst oldDed = 50000 + s80C + s80D + hra + other;\nconst oldTax = Math.max(0, salary - oldDed);\nconst oldBase= applySlabs(oldTax, OLD_SLABS);\nconst oldR   = oldTax <= 500000 ? 0 : oldBase;\nconst oldCess= oldR > 0 ? Math.round(oldR * .04) : 0;\nconst oldTot = oldR + oldCess;\nconst oldRate= salary > 0 ? +((oldTot / salary) * 100).toFixed(2) : 0;\n\n// New Regime\nconst newDed = 75000;\nconst newTax = Math.max(0, salary - newDed);\nconst newBase= applySlabs(newTax, NEW_SLABS);\nconst newR   = newTax <= 700000 ? 0 : newBase;\nconst newCess= newR > 0 ? Math.round(newR * .04) : 0;\nconst newTot = newR + newCess;\nconst newRate= salary > 0 ? +((newTot / salary) * 100).toFixed(2) : 0;\n\nconst savings = oldTot - newTot;\nconst better  = savings > 0 ? 'new' : savings < 0 ? 'old' : 'equal';\nconst rec     = savings > 0\n  ? 'New Regime saves Rs ' + Math.abs(savings).toLocaleString('en-IN') + ' more.'\n  : savings < 0\n  ? 'Old Regime saves Rs ' + Math.abs(savings).toLocaleString('en-IN') + ' more.'\n  : 'Both regimes result in the same tax liability.';\n\nreturn [{ json: {\n  salary, query,\n  deductions: { section80C: s80C, section80D: s80D, hra, other },\n  taxNumbers: {\n    old: { taxableIncome: oldTax, totalDeductions: oldDed, totalTax: oldTot, effectiveRate: oldRate },\n    new: { taxableIncome: newTax, totalDeductions: newDed, totalTax: newTot, effectiveRate: newRate }\n  },\n  savings: Math.abs(savings),\n  betterRegime: better,\n  recommendation: rec\n}}];"
+            },
+            "id": "node-2",
+            "name": "Validate Input & Compute Tax",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                520,
+                460
             ]
         },
         {
             "parameters": {
-                "jsCode": "// Format the incoming webhook payload into an HTML report\nconst data = $input.first().json;\n\nconst formatInr = (n) => {\n  if (!n && n !== 0) return 'N/A';\n  return '₹' + Number(n).toLocaleString('en-IN');\n};\n\nconst timestamp = new Date(data.timestamp || Date.now()).toLocaleString('en-IN', {\n  timeZone: 'Asia/Kolkata',\n  dateStyle: 'long',\n  timeStyle: 'short'\n});\n\nconst html = `\n<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\" />\n  <title>Tax Analysis Report</title>\n  <style>\n    body { font-family: Arial, sans-serif; margin: 40px; color: #1a1a2e; background: #f8f9fd; }\n    .header { background: linear-gradient(135deg, #6C63FF, #00D4AA); color: white; padding: 30px; border-radius: 12px; margin-bottom: 24px; }\n    h1 { margin: 0 0 6px; font-size: 24px; }\n    .subtitle { opacity: 0.85; font-size: 14px; }\n    .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }\n    .label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }\n    .value { font-size: 22px; font-weight: 700; color: #1a1a2e; }\n    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }\n    .regime-card { background: #f9fafb; border-radius: 10px; padding: 18px; border: 1px solid #e5e7eb; }\n    .regime-card.winner { border-color: #6C63FF; background: #f5f3ff; }\n    .regime-title { font-weight: 700; font-size: 15px; margin-bottom: 12px; }\n    .row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }\n    .row .key { color: #6b7280; }\n    .row .val { font-weight: 600; }\n    .verdict { font-size: 18px; font-weight: 700; padding: 16px; border-radius: 10px; background: #ecfdf5; color: #065f46; border-left: 4px solid #00D4AA; }\n    .savings { font-size: 28px; font-weight: 800; color: #00D4AA; }\n    .footer { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 24px; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>🏦 Tax Regime Analysis Report</h1>\n    <div class=\"subtitle\">Generated on ${timestamp} · FY 2024-25</div>\n  </div>\n\n  <div class=\"card\">\n    <div class=\"label\">Annual Gross Salary</div>\n    <div class=\"value\">${formatInr(data.salary)}</div>\n  </div>\n\n  <div class=\"card\">\n    <div class=\"verdict\">${data.recommendation || 'See Computation Below'}</div>\n    ${data.savings > 0 ? `<div style=\"margin-top:12px\"><div class=\"label\">Annual Savings</div><div class=\"savings\">${formatInr(data.savings)}</div></div>` : ''}\n  </div>\n\n  <div class=\"card\">\n    <h3 style=\"margin:0 0 16px\">Regime Comparison</h3>\n    <div class=\"grid\">\n      <div class=\"regime-card ${data.verdict === 'old' ? 'winner' : ''}\">\n        <div class=\"regime-title\">📋 Old Regime ${data.verdict === 'old' ? '✅' : ''}</div>\n        <div class=\"row\"><span class=\"key\">Taxable Income</span><span class=\"val\">${formatInr(data.taxNumbers?.old?.taxableIncome)}</span></div>\n        <div class=\"row\"><span class=\"key\">Deductions</span><span class=\"val\">${formatInr(data.taxNumbers?.old?.totalDeductions)}</span></div>\n        <div class=\"row\"><span class=\"key\">Total Tax</span><span class=\"val\">${formatInr(data.taxNumbers?.old?.totalTax)}</span></div>\n        <div class=\"row\" style=\"border:0\"><span class=\"key\">Effective Rate</span><span class=\"val\">${data.taxNumbers?.old?.effectiveRate || 0}%</span></div>\n      </div>\n      <div class=\"regime-card ${data.verdict === 'new' ? 'winner' : ''}\">\n        <div class=\"regime-title\">🆕 New Regime ${data.verdict === 'new' ? '✅' : ''}</div>\n        <div class=\"row\"><span class=\"key\">Taxable Income</span><span class=\"val\">${formatInr(data.taxNumbers?.new?.taxableIncome)}</span></div>\n        <div class=\"row\"><span class=\"key\">Deductions</span><span class=\"val\">${formatInr(data.taxNumbers?.new?.totalDeductions)}</span></div>\n        <div class=\"row\"><span class=\"key\">Total Tax</span><span class=\"val\">${formatInr(data.taxNumbers?.new?.totalTax)}</span></div>\n        <div class=\"row\" style=\"border:0\"><span class=\"key\">Effective Rate</span><span class=\"val\">${data.taxNumbers?.new?.effectiveRate || 0}%</span></div>\n      </div>\n    </div>\n  </div>\n\n  <div class=\"footer\">\n    Generated by TaxClarity · For informational purposes only · Consult a CA for advice.\n  </div>\n</body>\n</html>\n`;\n\nreturn [{ json: { ...data, htmlReport: html } }];\n"
+                "jsCode": "// ═══ PHASE 2: Call Gemini AI directly (no Chroma / no RAG) ═══\nconst https  = require('https');\nconst prev   = $input.first().json;\nconst apiKey = process.env.GEMINI_API_KEY;\nif (!apiKey) throw new Error('GEMINI_API_KEY is not set. Start n8n with: set GEMINI_API_KEY=xxx && npx n8n');\n\nconst { taxNumbers, recommendation, betterRegime, query, salary, deductions } = prev;\nconst fmtInr = n => 'Rs ' + Number(n).toLocaleString('en-IN');\n\nconst prompt = `You are an expert Indian tax advisor for FY 2024-25.\nA taxpayer has the following profile:\n\n=== SALARY DETAILS ===\nAnnual Gross Salary : ${fmtInr(salary)}\nSection 80C claimed : ${fmtInr(deductions.section80C)} (max Rs 1,50,000)\nSection 80D claimed : ${fmtInr(deductions.section80D)} (max Rs 25,000)\nHRA exemption       : ${fmtInr(deductions.hra)}\nOther deductions    : ${fmtInr(deductions.other)}\n\n=== COMPUTED TAX (deterministic, FY 2024-25 slabs) ===\nOld Regime:\n  Standard deduction : Rs 50,000\n  Total deductions   : ${fmtInr(taxNumbers.old.totalDeductions)}\n  Taxable income     : ${fmtInr(taxNumbers.old.taxableIncome)}\n  Total tax (incl. 4% cess): ${fmtInr(taxNumbers.old.totalTax)}\n  Effective rate     : ${taxNumbers.old.effectiveRate}%\n\nNew Regime (FY 2024-25):\n  Standard deduction : Rs 75,000\n  Total deductions   : ${fmtInr(taxNumbers.new.totalDeductions)}\n  Taxable income     : ${fmtInr(taxNumbers.new.taxableIncome)}\n  Total tax (incl. 4% cess): ${fmtInr(taxNumbers.new.totalTax)}\n  Effective rate     : ${taxNumbers.new.effectiveRate}%\n\nVerdict       : ${betterRegime.toUpperCase()} REGIME is better\nRecommendation: ${recommendation}\n\n=== USER QUESTION ===\n${query}\n\n=== YOUR TASK ===\n1. Briefly confirm the regime recommendation with a one-sentence justification.\n2. Give 3-5 actionable bullet-point tips to optimise tax further (cite relevant sections like 80C, 80D, NPS, HRA).\n3. Mention any key caveats (e.g. 87A rebate conditions, switching rules).\nBe concise, practical, and use plain English. Avoid long intros.`;\n\nconst MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'];\nconst sleep  = ms => new Promise(r => setTimeout(r, ms));\n\nasync function generate(model) {\n  return new Promise((resolve, reject) => {\n    const body = JSON.stringify({\n      contents: [{ parts: [{ text: prompt }] }],\n      generationConfig: { temperature: 0.2, maxOutputTokens: 1024 }\n    });\n    const req = https.request({\n      hostname: 'generativelanguage.googleapis.com',\n      path: '/v1beta/models/' + model + ':generateContent?key=' + apiKey,\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }\n    }, res => {\n      let d = '';\n      res.on('data', c => d += c);\n      res.on('end', () => {\n        try {\n          const j = JSON.parse(d);\n          if (j.error) return reject(Object.assign(new Error(j.error.message), { status: j.error.code }));\n          resolve(j.candidates?.[0]?.content?.parts?.[0]?.text || '');\n        } catch(e) { reject(new Error('Parse error: ' + d.slice(0, 150))); }\n      });\n    });\n    req.on('error', reject);\n    req.write(body);\n    req.end();\n  });\n}\n\nlet aiSummary = '', lastErr = '';\nfor (const model of MODELS) {\n  for (let attempt = 0; attempt < 2; attempt++) {\n    try {\n      aiSummary = await generate(model);\n      console.log('[gemini] responded with', model);\n      break;\n    } catch(err) {\n      lastErr = err.message;\n      const is429 = err.message.includes('429');\n      if (is429 && attempt === 0) {\n        const w = (err.message.match(/retry in ([\\d.]+)s/i) || [])[1];\n        await sleep(w ? Math.ceil(parseFloat(w)) * 1000 : 8000);\n        continue;\n      }\n      break;\n    }\n  }\n  if (aiSummary) break;\n}\n\nif (!aiSummary) aiSummary = 'AI explanation unavailable (' + lastErr.slice(0, 80) + '). Tax numbers above are deterministic.';\n\nconst bullets = aiSummary\n  .split('\\n')\n  .filter(l => l.trim().match(/^[-*•\\d]/))\n  .map(l => l.replace(/^[-*•\\d.]+\\s*/, '').trim())\n  .filter(Boolean);\n\nreturn [{ json: { ...prev, aiSummary, bullets } }];"
             },
-            "id": "node-format-html",
-            "name": "Format HTML Report",
+            "id": "node-3",
+            "name": "Call Gemini AI",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [
-                480,
-                300
+                780,
+                460
             ]
         },
         {
             "parameters": {
-                "jsCode": "// Convert HTML to PDF using a simple base64 encoding approach\n// In production: use n8n's PDF generation or call a headless HTML-to-PDF API\n// This node prepares the filename and marks the report ready\nconst data = $input.first().json;\n\nconst ts = new Date(data.timestamp || Date.now());\nconst dateStr = ts.toISOString().slice(0,10).replace(/-/g,'');\nconst filename = `tax_report_${dateStr}_${Date.now()}.html`;\n\n// For actual PDF: integrate with pdfShift.io, gotenberg, or use wkhtmltopdf\n// Here we return the HTML for local file writing\nreturn [{ json: { ...data, filename, reportReady: true } }];\n"
+                "jsCode": "// ═══ PHASE 3: Format JSON Response + Save HTML Report ═══\nconst fs   = require('fs');\nconst path = require('path');\nconst prev = $input.first().json;\nconst { salary, taxNumbers, recommendation, betterRegime, savings, aiSummary, bullets, deductions } = prev;\n\nconst fmtInr  = n => 'Rs ' + Number(n).toLocaleString('en-IN');\nconst ts      = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'long', timeStyle: 'short' });\nconst winLabel= betterRegime === 'new' ? 'New Regime' : betterRegime === 'old' ? 'Old Regime' : 'Equal Tax';\n\nconst apiResponse = {\n  verdict: betterRegime,\n  recommendation,\n  taxNumbers: {\n    old: { taxableIncome: taxNumbers.old.taxableIncome, totalTax: taxNumbers.old.totalTax, effectiveRate: taxNumbers.old.effectiveRate, totalDeductions: taxNumbers.old.totalDeductions },\n    new: { taxableIncome: taxNumbers.new.taxableIncome, totalTax: taxNumbers.new.totalTax, effectiveRate: taxNumbers.new.effectiveRate, totalDeductions: taxNumbers.new.totalDeductions }\n  },\n  savings,\n  aiSummary,\n  bullets,\n  timestamp: new Date().toISOString(),\n  generatedBy: 'n8n TaxClarity — Gemini Only'\n};\n\nconst html = `<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Tax Report</title>\n<style>\nbody{font-family:Arial,sans-serif;margin:40px;color:#1a1a2e;background:#f8f9fd}\n.hdr{background:linear-gradient(135deg,#6C63FF,#00D4AA);color:#fff;padding:30px;border-radius:12px;margin-bottom:20px}\n.card{background:#fff;border-radius:12px;padding:24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}\n.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}\n.rc{background:#f9fafb;border-radius:10px;padding:18px;border:1px solid #e5e7eb}\n.win{border-color:#6C63FF;background:#f5f3ff}\n.row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid #f0f0f0}\n.verdict{font-size:17px;font-weight:700;padding:16px;border-radius:10px;background:#ecfdf5;color:#065f46;border-left:4px solid #00D4AA}\n.bullet{padding:8px 12px;margin:5px 0;background:#f5f3ff;border-left:3px solid #6C63FF;font-size:13px;border-radius:0 6px 6px 0}\n.footer{font-size:11px;color:#9ca3af;text-align:center;margin-top:20px}\n</style></head><body>\n<div class=\"hdr\">\n  <h2 style=\"margin:0 0 6px\">Tax Regime Analysis Report</h2>\n  <div style=\"opacity:.85;font-size:13px\">Generated: ${ts} | FY 2024-25 | Powered by Gemini AI</div>\n</div>\n<div class=\"card\">\n  <div style=\"font-size:12px;color:#6b7280;text-transform:uppercase;margin-bottom:4px\">Annual Gross Salary</div>\n  <div style=\"font-size:22px;font-weight:700\">${fmtInr(salary)}</div>\n</div>\n<div class=\"card\">\n  <div class=\"verdict\">Winner: ${winLabel} — ${recommendation}</div>\n  ${savings > 0 ? `<div style=\"margin-top:12px\"><div style=\"font-size:12px;color:#6b7280\">Annual Tax Savings</div><div style=\"font-size:26px;font-weight:800;color:#00D4AA\">${fmtInr(savings)}</div></div>` : ''}\n</div>\n<div class=\"card\">\n  <h3 style=\"margin:0 0 14px\">Regime Comparison</h3>\n  <div class=\"grid\">\n    <div class=\"rc ${betterRegime === 'old' ? 'win' : ''}\">\n      <b>Old Regime ${betterRegime === 'old' ? '✅' : ''}</b><br><br>\n      <div class=\"row\"><span>Taxable Income</span><span>${fmtInr(taxNumbers.old.taxableIncome)}</span></div>\n      <div class=\"row\"><span>Total Deductions</span><span>${fmtInr(taxNumbers.old.totalDeductions)}</span></div>\n      <div class=\"row\"><span>Total Tax</span><span><b>${fmtInr(taxNumbers.old.totalTax)}</b></span></div>\n      <div class=\"row\" style=\"border:0\"><span>Effective Rate</span><span>${taxNumbers.old.effectiveRate}%</span></div>\n    </div>\n    <div class=\"rc ${betterRegime === 'new' ? 'win' : ''}\">\n      <b>New Regime ${betterRegime === 'new' ? '✅' : ''}</b><br><br>\n      <div class=\"row\"><span>Taxable Income</span><span>${fmtInr(taxNumbers.new.taxableIncome)}</span></div>\n      <div class=\"row\"><span>Total Deductions</span><span>${fmtInr(taxNumbers.new.totalDeductions)}</span></div>\n      <div class=\"row\"><span>Total Tax</span><span><b>${fmtInr(taxNumbers.new.totalTax)}</b></span></div>\n      <div class=\"row\" style=\"border:0\"><span>Effective Rate</span><span>${taxNumbers.new.effectiveRate}%</span></div>\n    </div>\n  </div>\n</div>\n${bullets && bullets.length ? `<div class=\"card\"><h3 style=\"margin:0 0 12px\">AI Tips (Gemini)</h3>${bullets.map(b => `<div class=\"bullet\">${b}</div>`).join('')}</div>` : ''}\n<div class=\"footer\">TaxClarity | For informational purposes only. Consult a CA before filing.</div>\n</body></html>`;\n\n// Save report\nconst dir = path.join(process.cwd(), 'reports');\nif (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });\nconst filename  = 'tax_report_' + Date.now() + '.html';\nconst savedPath = path.join(dir, filename);\nfs.writeFileSync(savedPath, html, 'utf8');\n\nreturn [{ json: { ...apiResponse, savedReport: savedPath, reportFilename: filename } }];"
             },
-            "id": "node-html-to-pdf",
-            "name": "Prepare PDF",
+            "id": "node-4",
+            "name": "Format Response & Save Report",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [
-                720,
-                300
-            ]
-        },
-        {
-            "parameters": {
-                "jsCode": "// Save the HTML report to ./reports/ directory\nconst fs = require('fs');\nconst path = require('path');\nconst data = $input.first().json;\n\nconst reportsDir = path.join(process.cwd(), 'reports');\nif (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });\n\nconst filePath = path.join(reportsDir, data.filename);\nfs.writeFileSync(filePath, data.htmlReport, 'utf8');\n\nconsole.log('Report saved:', filePath);\nreturn [{ json: { ...data, savedPath: filePath, savedAt: new Date().toISOString() } }];\n"
-            },
-            "id": "node-save-local",
-            "name": "Save Report Locally",
-            "type": "n8n-nodes-base.code",
-            "typeVersion": 2,
-            "position": [
-                960,
-                300
+                1040,
+                460
             ]
         },
         {
             "parameters": {
                 "respondWith": "json",
-                "responseBody": "={ \"status\": \"success\", \"savedPath\": \"{{ $json.savedPath }}\", \"filename\": \"{{ $json.filename }}\", \"savedAt\": \"{{ $json.savedAt }}\" }",
-                "options": {}
+                "responseBody": "={{ JSON.stringify($json) }}",
+                "options": {
+                    "responseCode": 200,
+                    "responseHeaders": {
+                        "entries": [
+                            {
+                                "name": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ]
+                    }
+                }
             },
-            "id": "node-respond",
-            "name": "Respond to Webhook",
+            "id": "node-5",
+            "name": "Return JSON to Postman",
             "type": "n8n-nodes-base.respondToWebhook",
             "typeVersion": 1,
             "position": [
-                1200,
-                300
+                1300,
+                460
             ]
-        },
-        {
-            "parameters": {
-                "fromEmail": "={{ $env.SMTP_FROM || 'noreply@taxclarity.local' }}",
-                "toEmail": "={{ $env.SMTP_TO || 'user@example.com' }}",
-                "subject": "Your Tax Regime Report — TaxClarity",
-                "emailType": "html",
-                "message": "={{ $json.htmlReport }}",
-                "options": {}
-            },
-            "id": "node-send-email",
-            "name": "Send Email (Optional)",
-            "type": "n8n-nodes-base.emailSend",
-            "typeVersion": 2,
-            "position": [
-                960,
-                500
-            ],
-            "disabled": true,
-            "notes": "Enable this node and configure SMTP credentials in n8n to send email reports."
         }
     ],
     "connections": {
-        "Webhook": {
+        "Webhook — Receive from Postman": {
             "main": [
                 [
                     {
-                        "node": "Format HTML Report",
+                        "node": "Validate Input & Compute Tax",
                         "type": "main",
                         "index": 0
                     }
                 ]
             ]
         },
-        "Format HTML Report": {
+        "Validate Input & Compute Tax": {
             "main": [
                 [
                     {
-                        "node": "Prepare PDF",
+                        "node": "Call Gemini AI",
                         "type": "main",
                         "index": 0
                     }
                 ]
             ]
         },
-        "Prepare PDF": {
+        "Call Gemini AI": {
             "main": [
                 [
                     {
-                        "node": "Save Report Locally",
+                        "node": "Format Response & Save Report",
                         "type": "main",
                         "index": 0
                     }
                 ]
             ]
         },
-        "Save Report Locally": {
+        "Format Response & Save Report": {
             "main": [
                 [
                     {
-                        "node": "Respond to Webhook",
-                        "type": "main",
-                        "index": 0
-                    }
-                ],
-                [
-                    {
-                        "node": "Send Email (Optional)",
+                        "node": "Return JSON to Postman",
                         "type": "main",
                         "index": 0
                     }
@@ -151,10 +135,12 @@
     "staticData": null,
     "tags": [
         "tax",
-        "report",
-        "rag"
+        "gemini",
+        "standalone",
+        "postman",
+        "no-chroma"
     ],
     "triggerCount": 0,
-    "updatedAt": "2026-02-27T00:00:00.000Z",
-    "versionId": "1"
+    "updatedAt": "2026-02-28T06:12:00.000Z",
+    "versionId": "3"
 }

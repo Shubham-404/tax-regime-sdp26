@@ -1,0 +1,170 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tax-explainer",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "2a6ffe27-ecc5-46c0-8f4c-06379ba97126",
+      "name": "Webhook — Receive from Postman",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1648,
+        -272
+      ],
+      "webhookId": "tax-explainer-gemini-only"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══ Validate Input + Compute Old & New Regime Tax (FY 2024-25) ═══\nconst body = $input.first().json.body || $input.first().json;\nconst salary = Number(body.salary);\nif (!salary || salary <= 0) throw new Error('salary must be a positive number');\n\nconst d    = body.deductions || {};\nconst s80C = Math.min(Number(d.section80C)||0, 150000);\nconst s80D = Math.min(Number(d.section80D)||0, 25000);\nconst hra  = Number(d.hra)||0;\nconst other= Number(d.other)||0;\nconst query= (body.query || 'Which tax regime is better for me?').slice(0, 500);\n\nfunction applySlabs(income, table) {\n  if (income <= 0) return 0;\n  let tax = 0, prev = 0;\n  for (const s of table) {\n    const slice = Math.min(income, s.u) - prev;\n    if (slice <= 0) break;\n    tax += slice * s.r;\n    prev = s.u;\n    if (income <= s.u) break;\n  }\n  return Math.round(tax);\n}\n\nconst OLD_SLABS = [{u:250000,r:0},{u:500000,r:.05},{u:1000000,r:.20},{u:Infinity,r:.30}];\nconst NEW_SLABS = [{u:300000,r:0},{u:700000,r:.05},{u:1000000,r:.10},{u:1200000,r:.15},{u:1500000,r:.20},{u:Infinity,r:.30}];\n\nconst oldDed = 50000 + s80C + s80D + hra + other;\nconst oldTax = Math.max(0, salary - oldDed);\nconst oldBase= applySlabs(oldTax, OLD_SLABS);\nconst oldR   = oldTax <= 500000 ? 0 : oldBase;\nconst oldCess= oldR > 0 ? Math.round(oldR * .04) : 0;\nconst oldTot = oldR + oldCess;\nconst oldRate= salary > 0 ? +((oldTot / salary) * 100).toFixed(2) : 0;\n\nconst newDed = 75000;\nconst newTax = Math.max(0, salary - newDed);\nconst newBase= applySlabs(newTax, NEW_SLABS);\nconst newR   = newTax <= 700000 ? 0 : newBase;\nconst newCess= newR > 0 ? Math.round(newR * .04) : 0;\nconst newTot = newR + newCess;\nconst newRate= salary > 0 ? +((newTot / salary) * 100).toFixed(2) : 0;\n\nconst savings = oldTot - newTot;\nconst better  = savings > 0 ? 'new' : savings < 0 ? 'old' : 'equal';\nconst rec     = savings > 0\n  ? 'New Regime saves Rs ' + Math.abs(savings).toLocaleString('en-IN') + ' more.'\n  : savings < 0\n  ? 'Old Regime saves Rs ' + Math.abs(savings).toLocaleString('en-IN') + ' more.'\n  : 'Both regimes result in the same tax liability.';\n\nreturn [{ json: {\n  salary, query,\n  deductions: { section80C: s80C, section80D: s80D, hra, other },\n  taxNumbers: {\n    old: { taxableIncome: oldTax, totalDeductions: oldDed, totalTax: oldTot, effectiveRate: oldRate },\n    new: { taxableIncome: newTax, totalDeductions: newDed, totalTax: newTot, effectiveRate: newRate }\n  },\n  savings: Math.abs(savings),\n  betterRegime: better,\n  recommendation: rec\n}}];"
+      },
+      "id": "5057604e-db48-4a4a-9ddc-f61eb1d7fb34",
+      "name": "Validate Input & Compute Tax",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert Indian tax advisor for FY 2024-25.\n\n=== FY 2024-25 TAX REGIME RULES ===\nOLD REGIME:\n  Standard deduction : Rs 50,000\n  Slabs : 0% (up to Rs 2.5L) | 5% (Rs 2.5-5L) | 20% (Rs 5-10L) | 30% (above Rs 10L)\n  Allowed deductions : 80C max Rs 1.5L, 80D max Rs 25K, HRA, NPS, LTA, etc.\n  Rebate 87A : Full tax rebate if taxable income <= Rs 5L (net tax = 0)\n\nNEW REGIME:\n  Standard deduction : Rs 75,000\n  Slabs : 0% (up to Rs 3L) | 5% (Rs 3-7L) | 10% (Rs 7-10L) | 15% (Rs 10-12L) | 20% (Rs 12-15L) | 30% (above Rs 15L)\n  No deductions allowed (80C, 80D, HRA not applicable)\n  Rebate 87A : Full tax rebate if taxable income <= Rs 7L (net tax = 0)\n\nBoth regimes: 4% Health & Education Cess on total tax.\n\n=== TAXPAYER DATA ===\nAnnual Gross Salary  : Rs {{ $('Validate Input & Compute Tax').first().json.salary }}\nSection 80C claimed  : Rs {{ $('Validate Input & Compute Tax').first().json.deductions.section80C }}\nSection 80D claimed  : Rs {{ $('Validate Input & Compute Tax').first().json.deductions.section80D }}\nHRA exemption        : Rs {{ $('Validate Input & Compute Tax').first().json.deductions.hra }}\nOther deductions     : Rs {{ $('Validate Input & Compute Tax').first().json.deductions.other }}\n\nComputed taxes (deterministic):\n  Old Regime tax : Rs {{ $('Validate Input & Compute Tax').first().json.taxNumbers.old.totalTax }} ({{ $('Validate Input & Compute Tax').first().json.taxNumbers.old.effectiveRate }}% effective rate)\n  New Regime tax : Rs {{ $('Validate Input & Compute Tax').first().json.taxNumbers.new.totalTax }} ({{ $('Validate Input & Compute Tax').first().json.taxNumbers.new.effectiveRate }}% effective rate)\n  Verdict        : {{ $('Validate Input & Compute Tax').first().json.recommendation }}\n\n=== USER QUESTION ===\n{{ $('Validate Input & Compute Tax').first().json.query }}\n\n=== YOUR TASK ===\n1. Confirm the recommendation in one sentence.\n2. Give 3-5 actionable bullet tips to save more tax (cite 80C, 80D, NPS, HRA where relevant).\n3. Mention key caveats (87A rebate conditions, switching rules).\nBe concise and practical. Avoid long intros."
+            },
+            {
+              "content": "Do not ask questions, just answer according to the data received."
+            }
+          ]
+        },
+        "jsonOutput": false,
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        2176,
+        -272
+      ],
+      "id": "97490824-836f-4b55-a84f-b21afdd35796",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "HcmGcBbtOAYWwWaK",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract Gemini's text output and return it directly\nconst gemini = $input.first().json;\nconst aiText = gemini.output || gemini.text || gemini.content || JSON.stringify(gemini);\nreturn [{ json: { aiSummary: aiText, timestamp: new Date().toISOString(), generatedBy: 'Gemini AI via n8n' } }];"
+      },
+      "id": "4609cead-dacc-466a-89de-4269d09947a2",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2432,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "a6a04ec7-4ea8-4410-9b08-909ab5e58da7",
+      "name": "Return JSON to Postman",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2688,
+        -272
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook — Receive from Postman": {
+      "main": [
+        [
+          {
+            "node": "Validate Input & Compute Tax",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input & Compute Tax": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Return JSON to Postman",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b306044e-abd2-4ff8-9878-97f466a69b9c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "070f8f6c172cccb48d33bca9da3e6077c51fb8856378cf788ed3619e69f2d5cd"
+  },
+  "id": "GHNkJtjPncQtGaay",
+  "tags": []
+}
