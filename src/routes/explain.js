@@ -35,11 +35,11 @@ const ExplainSchema = z.object({
     query: z.string().max(500).optional(),
 });
 
-// Model preference: use GEMINI_MODEL from .env, or fall through the list
-// Set GEMINI_MODEL=gemini-1.5-flash in .env if 2.0-flash quota is unavailable
+// gemini-2.5-flash is confirmed working on this API key.
+// 1.5-flash variants return 404 on v1beta; 2.0-flash returns 429 (quota).
 const GEMINI_MODELS = process.env.GEMINI_MODEL
-    ? [process.env.GEMINI_MODEL, 'gemini-1.5-flash', 'gemini-1.5-pro']
-    : ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'];
+    ? [process.env.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.0-flash']
+    : ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
 
 /** Sleep for ms milliseconds */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
