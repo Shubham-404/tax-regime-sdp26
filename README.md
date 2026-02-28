@@ -291,49 +291,48 @@ What comes back:
 
 ---
 
-## n8n Workflow — Two Modes
+## n8n Workflow — Standalone via Postman
 
-The n8n workflow (`n8n_workflow.json`) can work in **two modes**:
+The workflow (`My workflow.json`) runs the **complete pipeline by itself** — no Node.js server needed. It uses n8n's built-in **Gemini Agent node** instead of raw API calls.
 
-| Mode | When to use |
-|------|------------|
-| **Triggered by backend** | Node.js server calls n8n after `/api/explain` — n8n saves the report |
-| **Standalone (Postman)** | n8n does everything itself — no Node.js needed |
+### Pipeline (5 nodes)
+
+```
+Postman POST
+    ↓
+[1] Webhook              ← Receives salary + deductions + query
+    ↓
+[2] Validate & Tax       ← Computes Old/New regime tax (full FY 2024-25 slab math)
+    ↓
+[3] Message a model      ← Sends prompt to Gemini 2.5 Flash (Agent node)
+    ↓                      Returns response in Markdown format
+[4] Format Response      ← Extracts Gemini's text output
+    ↓
+[5] Return JSON          ← Sends back to Postman
+```
+
+> **No Chroma. No PDFs. No report saving.** Just math + Gemini.
 
 ---
 
-### Mode A: Standalone — Call Directly from Postman
-
-The workflow does the full pipeline by itself:
-```
-Postman POST → Webhook → Tax Math → RAG (Chroma) → Gemini → Save Report → JSON Response
-```
-
-**Setup:**
+### Setup
 
 ```bash
-# 1. Start Chroma (must be running and have PDFs ingested)
-chroma run --path ./chroma_data
+# 1. Start n8n
+npx n8n
+# → Opens at http://localhost:5678
 
-# 2. Start n8n with your API key passed as an env variable
-GEMINI_API_KEY=your_key_here npx n8n
-# On Windows CMD:
-set GEMINI_API_KEY=your_key_here && npx n8n
+# 2. Workflows → Import from File → select "My workflow.json"
+# 3. Click Activate toggle (top right)
+# 4. Add your Gemini credential inside the "Message a model" node
 ```
 
-```bash
-# 3. Open http://localhost:5678
-# 4. Workflows → Import from File → select n8n_workflow.json
-# 5. Click the Activate toggle (top right)
-# 6. Copy the webhook URL shown — it will look like:
-#    http://localhost:5678/webhook/tax-explainer
-```
+### Postman Request
 
-**Postman request:**
-- Method: `POST`
-- URL: `http://localhost:5678/webhook/tax-explainer`
-- Headers: `Content-Type: application/json`
-- Body (raw JSON):
+- **Method:** `POST`
+- **URL:** `http://localhost:5678/webhook/tax-explainer`
+- **Headers:** `Content-Type: application/json`
+- **Body:**
 
 ```json
 {
@@ -348,53 +347,43 @@ set GEMINI_API_KEY=your_key_here && npx n8n
 }
 ```
 
-**Response you get back:**
+### Response
+
 ```json
 {
-  "verdict": "new",
-  "recommendation": "New Regime saves Rs 27,820 more.",
-  "taxNumbers": {
-    "old": { "totalTax": 99320, "effectiveRate": 8.28 },
-    "new": { "totalTax": 71500, "effectiveRate": 5.96 }
-  },
-  "savings": 27820,
-  "aiSummary": "...",
-  "bullets": ["...", "..."],
-  "sources": [{ "file": "income_tax_guide.pdf", "page": 1 }],
-  "savedReport": "D:\\nora-ai\\reports\\tax_report_1234.html",
-  "generatedBy": "n8n TaxClarity Standalone Workflow"
+  "aiSummary": "## Verdict\n> **New Regime** saves you Rs 27,820 more...\n\n## Tips\n- Invest in **NPS** under Section 80CCD(1B)...\n",
+  "timestamp": "2026-02-28T07:00:00.000Z",
+  "generatedBy": "Gemini AI via n8n"
 }
 ```
 
-The HTML report is also saved automatically to `./reports/`.
+The `aiSummary` field contains **Markdown-formatted** text with headings (`##`), bold numbers, bullet tips, and a blockquote verdict — ready to render in any Markdown viewer.
 
 ---
 
-### Mode B: Triggered by the Node.js Backend
+### What's in the Gemini Prompt
+
+The prompt sent to Gemini has two hardcoded and two dynamic parts:
+
+| Part | Type | Example |
+|------|------|---------|
+| FY 2024-25 regime rules (slabs, 87A, cess) | **Hardcoded** | Old: 0%/5%/20%/30% slabs |
+| Taxpayer salary + deductions | **Dynamic** (from Postman body) | Rs 12,00,000 |
+| Computed tax numbers (Old vs New) | **Dynamic** (from Code node) | Old: Rs 99,320 / New: Rs 71,500 |
+| Markdown formatting instruction | **Hardcoded** | Use ## headings, bold key numbers, > for verdict |
+
+---
+
+### Node.js Backend + n8n (Optional)
+
+If you also run the Node.js server, n8n can be triggered automatically after every form submission:
 
 ```bash
-# Start n8n
 npx n8n
-# Import workflow, activate it, copy webhook URL
-# Paste it in .env as:
+# Import workflow, activate, copy webhook URL
+# Add to .env:
 N8N_WEBHOOK_URL=http://localhost:5678/webhook/tax-explainer
-# Restart the Node.js server
-node server.js
-```
-
-Every form submission on the web UI will trigger n8n to save a PDF report.
-
----
-
-### n8n Workflow — 6 Nodes Explained
-
-```
-[1] Webhook             ← Receives POST from Postman / Node.js backend
-[2] Validate & Tax      ← Zod-style validation + Old/New regime slab math
-[3] RAG (Chroma)        ← Gets collection ID, embeds query, fetches top-5 chunks
-[4] Gemini              ← Builds guarded prompt, calls Gemini with model fallback+retry
-[5] Format & Save       ← Builds JSON response + saves HTML report to ./reports/
-[6] Return Response     ← Sends JSON back to the caller (Postman or backend)
+# Restart server: node server.js
 ```
 
 ---
