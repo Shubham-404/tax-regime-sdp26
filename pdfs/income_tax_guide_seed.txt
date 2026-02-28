@@ -1,0 +1,63 @@
+Indian Income Tax Guide — FY 2024-25
+============================================================
+
+--- Old Tax Regime — Slabs and Deductions ---
+The Old Tax Regime allows taxpayers to claim a wide range of deductions and exemptions.
+
+TAX SLABS (Old Regime):
+• Income up to ₹2,50,000            : NIL
+• Income ₹2,50,001 – ₹5,00,000     : 5%
+• Income ₹5,00,001 – ₹10,00,000    : 20%
+• Income above ₹10,00,000           : 30%
+
+Standard Deduction: Salaried individuals can claim a standard deduction of ₹50,000 per annum without any proofs.
+
+Section 80C (Maximum ₹1,50,000):
+Eligible investments include Public Provident Fund (PPF), Employee Provident Fund (EPF), Equity Linked Savings Scheme (ELSS), National Savings Certificate (NSC), 5-year bank FDs, ULIP, tuition fees, home loan principal repayment, and life insurance premium.
+
+Section 80D (Medical Insurance):
+• Up to ₹25,000 for insurance premium for self, spouse, and children.
+• Additional ₹25,000 for parents' health insurance (₹50,000 if parents are senior citizens).
+
+HRA Exemption (House Rent Allowance):
+Exemption is the minimum of:
+(a) Actual HRA received
+(b) Rent paid minus 10% of salary  
+(c) 50% of salary for metro cities / 40% for non-metro cities
+
+Section 87A Rebate (Old Regime):
+If your net taxable income does not exceed ₹5,00,000, you are eligible for a tax rebate of up to ₹12,500 under Section 87A. This means individuals earning up to ₹5 lakh pay ZERO tax.
+
+Health and Education Cess:
+A 4% cess is levied on the total income tax payable (including surcharge, if any).
+
+--- New Tax Regime — FY 2024-25 (Budget 2024 Updates) ---
+The New Tax Regime was introduced in Budget 2020 and significantly revised in Budget 2023 and Budget 2024. It offers lower tax rates but fewer deductions.
+
+TAX SLABS (New Regime — FY 2024-25):
+• Income up to ₹3,00,000            : NIL
+• Income ₹3,00,001 – ₹7,00,000     : 5%
+• Income ₹7,00,001 – ₹10,00,000    : 10%
+• Income ₹10,00,001 – ₹12,00,000   : 15%
+• Income ₹12,00,001 – ₹15,00,000   : 20%
+• Income above ₹15,00,000           : 30%
+
+Standard Deduction (New Regime): 
+Budget 2024 increased the standard deduction for salaried employees from ₹50,000 to ₹75,000 under the new tax regime. This is automatic — no investment required.
+
+Section 87A Rebate (New Regime):
+Under the new regime, the 87A rebate covers taxable income up to ₹7,00,000. This means if your net taxable income (after standard deduction) is ₹7 lakh or less, your tax liability is ZERO.
+
+Deductions NOT AVAILABLE in New Regime:
+• Section 80C (PPF, ELSS, etc.)
+• Section 80D (health insurance)
+• HRA exemption
+• LTA (Leave Travel Allowance)
+• Professional tax
+• Interest on housing loan (self-occupied)
+
+Deductions AVAILABLE in New Regime:
+• Standard deduction (₹75,000 for salaried)
+• Employer's contribution to NPS under Section 80CCD(2)
+• Agniveer Corpus Fund deduction under Section 80CCH
+

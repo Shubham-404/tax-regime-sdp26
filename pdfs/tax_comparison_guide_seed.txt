@@ -1,0 +1,40 @@
+Choosing Between Old and New Tax Regime — Decision Guide
+============================================================
+
+--- When is the Old Regime Better? ---
+The Old Tax Regime is generally more beneficial when your total eligible deductions are HIGH.
+
+Key thresholds for comparison (approximate):
+• At ₹5 lakh income: Both regimes → Zero tax (87A rebate applies)
+• At ₹7 lakh income: New regime → Zero tax. Old regime → Tax if deductions < ₹5L
+• At ₹10 lakh income: Old regime saves more if deductions exceed ~₹2.75 lakh
+• At ₹15 lakh income: Old regime better only if deductions exceed ~₹4.25 lakh
+• Above ₹15 lakh: New regime is typically more beneficial
+
+Breaking-even Deduction Levels (approximate, FY 2024-25):
+Gross Salary   | Deductions needed for Old Regime to be equal or better
+₹7,00,000      | ₹3,25,000+
+₹10,00,000     | ₹2,75,000+
+₹15,00,000     | ₹4,25,000+
+₹20,00,000     | ₹4,25,000+
+
+Recommendation: If your total deductions (80C + 80D + HRA + others) exceed the break-even threshold, stick with the Old Regime. Otherwise, the New Regime is simpler and cheaper.
+
+--- Step-by-Step: How to Declare Your Regime ---
+STEP 1: Tally your eligible deductions
+List all available deductions: 80C investments, health insurance (80D), HRA, home loan interest, NPS, etc.
+
+STEP 2: Compute tax under both regimes
+Calculate your taxable income under both regimes. Use the official Income Tax Calculator at incometax.gov.in or a trusted tool.
+
+STEP 3: Compare and choose
+Select the regime that results in lower tax outflow. Remember to account for 4% Health & Education Cess in both cases.
+
+STEP 4: Inform your employer
+Submit Form 12BB or a written declaration to your employer at the beginning of the financial year (April). Your employer will deduct TDS based on the selected regime.
+
+STEP 5: File your ITR
+You can change your tax regime when filing your Income Tax Return (ITR) — but only up to the due date. Businesses filing under presumptive taxation schemes have restrictions on switching.
+
+Important: The New Regime is the DEFAULT regime from FY 2023-24. You must actively opt out if you want to file under the Old Regime.
+

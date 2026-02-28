@@ -1,0 +1,160 @@
+{
+    "name": "Tax Regime Explainer Report",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "tax-report",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "node-webhook",
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                240,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Format the incoming webhook payload into an HTML report\nconst data = $input.first().json;\n\nconst formatInr = (n) => {\n  if (!n && n !== 0) return 'N/A';\n  return '₹' + Number(n).toLocaleString('en-IN');\n};\n\nconst timestamp = new Date(data.timestamp || Date.now()).toLocaleString('en-IN', {\n  timeZone: 'Asia/Kolkata',\n  dateStyle: 'long',\n  timeStyle: 'short'\n});\n\nconst html = `\n<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\" />\n  <title>Tax Analysis Report</title>\n  <style>\n    body { font-family: Arial, sans-serif; margin: 40px; color: #1a1a2e; background: #f8f9fd; }\n    .header { background: linear-gradient(135deg, #6C63FF, #00D4AA); color: white; padding: 30px; border-radius: 12px; margin-bottom: 24px; }\n    h1 { margin: 0 0 6px; font-size: 24px; }\n    .subtitle { opacity: 0.85; font-size: 14px; }\n    .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }\n    .label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }\n    .value { font-size: 22px; font-weight: 700; color: #1a1a2e; }\n    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }\n    .regime-card { background: #f9fafb; border-radius: 10px; padding: 18px; border: 1px solid #e5e7eb; }\n    .regime-card.winner { border-color: #6C63FF; background: #f5f3ff; }\n    .regime-title { font-weight: 700; font-size: 15px; margin-bottom: 12px; }\n    .row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }\n    .row .key { color: #6b7280; }\n    .row .val { font-weight: 600; }\n    .verdict { font-size: 18px; font-weight: 700; padding: 16px; border-radius: 10px; background: #ecfdf5; color: #065f46; border-left: 4px solid #00D4AA; }\n    .savings { font-size: 28px; font-weight: 800; color: #00D4AA; }\n    .footer { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 24px; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>🏦 Tax Regime Analysis Report</h1>\n    <div class=\"subtitle\">Generated on ${timestamp} · FY 2024-25</div>\n  </div>\n\n  <div class=\"card\">\n    <div class=\"label\">Annual Gross Salary</div>\n    <div class=\"value\">${formatInr(data.salary)}</div>\n  </div>\n\n  <div class=\"card\">\n    <div class=\"verdict\">${data.recommendation || 'See Computation Below'}</div>\n    ${data.savings > 0 ? `<div style=\"margin-top:12px\"><div class=\"label\">Annual Savings</div><div class=\"savings\">${formatInr(data.savings)}</div></div>` : ''}\n  </div>\n\n  <div class=\"card\">\n    <h3 style=\"margin:0 0 16px\">Regime Comparison</h3>\n    <div class=\"grid\">\n      <div class=\"regime-card ${data.verdict === 'old' ? 'winner' : ''}\">\n        <div class=\"regime-title\">📋 Old Regime ${data.verdict === 'old' ? '✅' : ''}</div>\n        <div class=\"row\"><span class=\"key\">Taxable Income</span><span class=\"val\">${formatInr(data.taxNumbers?.old?.taxableIncome)}</span></div>\n        <div class=\"row\"><span class=\"key\">Deductions</span><span class=\"val\">${formatInr(data.taxNumbers?.old?.totalDeductions)}</span></div>\n        <div class=\"row\"><span class=\"key\">Total Tax</span><span class=\"val\">${formatInr(data.taxNumbers?.old?.totalTax)}</span></div>\n        <div class=\"row\" style=\"border:0\"><span class=\"key\">Effective Rate</span><span class=\"val\">${data.taxNumbers?.old?.effectiveRate || 0}%</span></div>\n      </div>\n      <div class=\"regime-card ${data.verdict === 'new' ? 'winner' : ''}\">\n        <div class=\"regime-title\">🆕 New Regime ${data.verdict === 'new' ? '✅' : ''}</div>\n        <div class=\"row\"><span class=\"key\">Taxable Income</span><span class=\"val\">${formatInr(data.taxNumbers?.new?.taxableIncome)}</span></div>\n        <div class=\"row\"><span class=\"key\">Deductions</span><span class=\"val\">${formatInr(data.taxNumbers?.new?.totalDeductions)}</span></div>\n        <div class=\"row\"><span class=\"key\">Total Tax</span><span class=\"val\">${formatInr(data.taxNumbers?.new?.totalTax)}</span></div>\n        <div class=\"row\" style=\"border:0\"><span class=\"key\">Effective Rate</span><span class=\"val\">${data.taxNumbers?.new?.effectiveRate || 0}%</span></div>\n      </div>\n    </div>\n  </div>\n\n  <div class=\"footer\">\n    Generated by TaxClarity · For informational purposes only · Consult a CA for advice.\n  </div>\n</body>\n</html>\n`;\n\nreturn [{ json: { ...data, htmlReport: html } }];\n"
+            },
+            "id": "node-format-html",
+            "name": "Format HTML Report",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                480,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Convert HTML to PDF using a simple base64 encoding approach\n// In production: use n8n's PDF generation or call a headless HTML-to-PDF API\n// This node prepares the filename and marks the report ready\nconst data = $input.first().json;\n\nconst ts = new Date(data.timestamp || Date.now());\nconst dateStr = ts.toISOString().slice(0,10).replace(/-/g,'');\nconst filename = `tax_report_${dateStr}_${Date.now()}.html`;\n\n// For actual PDF: integrate with pdfShift.io, gotenberg, or use wkhtmltopdf\n// Here we return the HTML for local file writing\nreturn [{ json: { ...data, filename, reportReady: true } }];\n"
+            },
+            "id": "node-html-to-pdf",
+            "name": "Prepare PDF",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                720,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Save the HTML report to ./reports/ directory\nconst fs = require('fs');\nconst path = require('path');\nconst data = $input.first().json;\n\nconst reportsDir = path.join(process.cwd(), 'reports');\nif (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });\n\nconst filePath = path.join(reportsDir, data.filename);\nfs.writeFileSync(filePath, data.htmlReport, 'utf8');\n\nconsole.log('Report saved:', filePath);\nreturn [{ json: { ...data, savedPath: filePath, savedAt: new Date().toISOString() } }];\n"
+            },
+            "id": "node-save-local",
+            "name": "Save Report Locally",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                960,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"status\": \"success\", \"savedPath\": \"{{ $json.savedPath }}\", \"filename\": \"{{ $json.filename }}\", \"savedAt\": \"{{ $json.savedAt }}\" }",
+                "options": {}
+            },
+            "id": "node-respond",
+            "name": "Respond to Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1200,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "fromEmail": "={{ $env.SMTP_FROM || 'noreply@taxclarity.local' }}",
+                "toEmail": "={{ $env.SMTP_TO || 'user@example.com' }}",
+                "subject": "Your Tax Regime Report — TaxClarity",
+                "emailType": "html",
+                "message": "={{ $json.htmlReport }}",
+                "options": {}
+            },
+            "id": "node-send-email",
+            "name": "Send Email (Optional)",
+            "type": "n8n-nodes-base.emailSend",
+            "typeVersion": 2,
+            "position": [
+                960,
+                500
+            ],
+            "disabled": true,
+            "notes": "Enable this node and configure SMTP credentials in n8n to send email reports."
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Format HTML Report",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Format HTML Report": {
+            "main": [
+                [
+                    {
+                        "node": "Prepare PDF",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepare PDF": {
+            "main": [
+                [
+                    {
+                        "node": "Save Report Locally",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Save Report Locally": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Send Email (Optional)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "staticData": null,
+    "tags": [
+        "tax",
+        "report",
+        "rag"
+    ],
+    "triggerCount": 0,
+    "updatedAt": "2026-02-27T00:00:00.000Z",
+    "versionId": "1"
+}

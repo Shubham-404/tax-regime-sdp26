@@ -1,0 +1,35 @@
+[
+    {
+        "scenario": "Low salary — both regimes zero tax (87A rebate)",
+        "salary": 500000,
+        "deductions": {
+            "section80C": 100000,
+            "section80D": 15000,
+            "hra": 0,
+            "other": 0
+        },
+        "query": "Do I need to pay any tax on ₹5 lakh salary?"
+    },
+    {
+        "scenario": "Mid-range salary — old regime may win with deductions",
+        "salary": 1200000,
+        "deductions": {
+            "section80C": 150000,
+            "section80D": 25000,
+            "hra": 60000,
+            "other": 0
+        },
+        "query": "Which regime is better for me with standard deductions and HRA?"
+    },
+    {
+        "scenario": "High salary — new regime typically wins",
+        "salary": 2500000,
+        "deductions": {
+            "section80C": 150000,
+            "section80D": 25000,
+            "hra": 120000,
+            "other": 30000
+        },
+        "query": "Should I switch to the new tax regime at ₹25 lakh salary?"
+    }
+]
